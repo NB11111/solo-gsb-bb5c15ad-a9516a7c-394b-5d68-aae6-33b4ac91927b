@@ -9,7 +9,7 @@
 <body>
 <header class="topbar">
   <h1>字幕校稿对齐</h1>
-  <p class="subtitle">逐行对白稿 × SRT 全局单调对齐 · SRT 时间轴重定时（校准点分段线性映射）· SRT 断行排版（宽度约束下枚举最优断点）· SRT 时间避让（重叠/过近字幕整体平移修整）· 双语 SRT 拆轨（每块两行拆分为中文轨/英文轨）</p>
+  <p class="subtitle">逐行对白稿 × SRT 全局单调对齐 · SRT 时间轴重定时（校准点分段线性映射）· SRT 断行排版（宽度约束下枚举最优断点）· SRT 时间避让（重叠/过近字幕整体平移修整）· 双语 SRT 拆轨（每块两行拆分为中文轨/英文轨）· SRT 版本差异（旧版/新版按块序全局最小代价对齐，支持拆分/合并/缺项）</p>
 </header>
 
 <main>
@@ -19,6 +19,7 @@
     <button type="button" id="tabRelayout" class="tab" data-tab="relayout">SRT 断行排版</button>
     <button type="button" id="tabAvoid" class="tab" data-tab="avoid">SRT 时间避让</button>
     <button type="button" id="tabSplit" class="tab" data-tab="split">双语 SRT 拆轨</button>
+    <button type="button" id="tabDiff" class="tab" data-tab="diff">SRT 版本差异</button>
   </nav>
 
   <div id="viewAlign">
@@ -303,6 +304,64 @@
     </table>
   </section>
   </div><!-- /viewSplit -->
+
+  <div id="viewDiff" class="hidden">
+  <section class="input-grid">
+    <div class="pane">
+      <div class="pane-head">
+        <label for="dfOld">旧版 SRT</label>
+        <button type="button" class="ghost" id="dfSampleOld">填入示例</button>
+      </div>
+      <textarea id="dfOld" spellcheck="false"
+        placeholder="粘贴旧版标准 SRT&#10;1&#10;00:00:01,000 --> 00:00:03,000&#10;你好，世界！"></textarea>
+    </div>
+    <div class="pane">
+      <div class="pane-head">
+        <label for="dfNew">新版 SRT</label>
+        <button type="button" class="ghost" id="dfSampleNew">填入示例</button>
+      </div>
+      <textarea id="dfNew" spellcheck="false"
+        placeholder="粘贴新版标准 SRT&#10;1&#10;00:00:01,000 --> 00:00:03,000&#10;你好，世界！"></textarea>
+    </div>
+  </section>
+
+  <section class="controls">
+    <button type="button" id="dfRunBtn" class="primary">开始审校</button>
+    <button type="button" id="dfClearBtn" class="ghost">清空</button>
+    <span id="dfStatus" class="status" role="status"></span>
+  </section>
+
+  <section id="dfSummary" class="summary hidden">
+    <span class="chip chip-df-unchanged">未变 <b id="dfCntUnchanged">0</b></span>
+    <span class="chip chip-df-time">仅改时 <b id="dfCntTime">0</b></span>
+    <span class="chip chip-df-text">文字改动 <b id="dfCntText">0</b></span>
+    <span class="chip chip-df-split">拆分 <b id="dfCntSplit">0</b></span>
+    <span class="chip chip-df-merge">合并 <b id="dfCntMerge">0</b></span>
+    <span class="chip chip-df-added">新增 <b id="dfCntAdded">0</b></span>
+    <span class="chip chip-df-deleted">删除 <b id="dfCntDeleted">0</b></span>
+    <span class="chip">总行数 <b id="dfCntTotal">0</b></span>
+    <span class="chip">总代价 <b id="dfTotalCost">0</b></span>
+    <button type="button" id="dfDownloadBtn" class="ghost">下载 CSV</button>
+  </section>
+
+  <section id="dfResultWrap" class="result-wrap hidden">
+    <table id="dfTable">
+      <thead>
+        <tr>
+          <th class="col-df-status">状态</th>
+          <th class="col-df-cost">代价</th>
+          <th class="col-rt-idx">旧#</th>
+          <th class="col-tc">旧版时间码</th>
+          <th class="col-df-text">旧版正文</th>
+          <th class="col-rt-idx">新#</th>
+          <th class="col-tc">新版时间码</th>
+          <th class="col-df-text">新版正文</th>
+        </tr>
+      </thead>
+      <tbody id="dfBody"></tbody>
+    </table>
+  </section>
+  </div><!-- /viewDiff -->
 </main>
 
 <script src="/static/app.js"></script>
@@ -310,5 +369,6 @@
 <script src="/static/relayout.js"></script>
 <script src="/static/avoid.js"></script>
 <script src="/static/split.js"></script>
+<script src="/static/diff.js"></script>
 </body>
 </html>

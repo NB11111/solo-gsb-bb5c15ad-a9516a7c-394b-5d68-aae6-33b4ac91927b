@@ -277,6 +277,67 @@ tr.row-en-top td:first-child { border-left: 4px solid var(--single-border); }
 .summary .dl-btns { margin-left: auto; display: flex; gap: 10px; }
 .summary .dl-btns .ghost { margin-left: 0; }
 
+/* SRT 版本差异审校 */
+:root {
+  --df-unchanged-border: #34a853;
+  --df-unchanged-bg: #e9f7ee;
+  --df-time-border: #2563eb;
+  --df-time-bg: #eef4fe;
+  --df-text-border: #f97316;
+  --df-text-bg: #fff1e6;
+  --df-split-border: #7c3aed;
+  --df-split-bg: #f3efff;
+  --df-merge-border: #0891b2;
+  --df-merge-bg: #e6f7fb;
+  --df-added-border: #34a853;
+  --df-added-bg: #e6f9ec;
+  --df-deleted-border: #ea4335;
+  --df-deleted-bg: #fdecea;
+}
+.col-df-status { width: 88px; }
+.col-df-cost { width: 74px; text-align: right; }
+.col-df-text { min-width: 220px; }
+.df-sep {
+  height: 0;
+  border-top: 1px dashed #c9d1d9;
+  margin: 6px 0;
+}
+.df-dt {
+  margin-top: 3px;
+  font-size: 11px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.badge-df-unchanged { background: var(--df-unchanged-border); color: #fff; }
+.badge-df-time { background: var(--df-time-border); color: #fff; }
+.badge-df-text { background: var(--df-text-border); color: #fff; }
+.badge-df-split { background: var(--df-split-border); color: #fff; }
+.badge-df-merge { background: var(--df-merge-border); color: #fff; }
+.badge-df-added { background: var(--df-added-border); color: #fff; }
+.badge-df-deleted { background: var(--df-deleted-border); color: #fff; }
+.chip-df-unchanged { background: var(--df-unchanged-bg); border-color: var(--df-unchanged-border); }
+.chip-df-time { background: var(--df-time-bg); border-color: var(--df-time-border); }
+.chip-df-text { background: var(--df-text-bg); border-color: var(--df-text-border); }
+.chip-df-split { background: var(--df-split-bg); border-color: var(--df-split-border); }
+.chip-df-merge { background: var(--df-merge-bg); border-color: var(--df-merge-border); }
+.chip-df-added { background: var(--df-added-bg); border-color: var(--df-added-border); }
+.chip-df-deleted { background: var(--df-deleted-bg); border-color: var(--df-deleted-border); }
+tr.row-df-unchanged { background: var(--df-unchanged-bg); }
+tr.row-df-unchanged td:first-child { border-left: 4px solid var(--df-unchanged-border); }
+tr.row-df-time_only { background: var(--df-time-bg); }
+tr.row-df-time_only td:first-child { border-left: 4px solid var(--df-time-border); }
+tr.row-df-text_changed { background: var(--df-text-bg); }
+tr.row-df-text_changed td:first-child { border-left: 4px solid var(--df-text-border); }
+tr.row-df-split { background: var(--df-split-bg); }
+tr.row-df-split td:first-child { border-left: 4px solid var(--df-split-border); }
+tr.row-df-merge { background: var(--df-merge-bg); }
+tr.row-df-merge td:first-child { border-left: 4px solid var(--df-merge-border); }
+tr.row-df-added { background: var(--df-added-bg); }
+tr.row-df-added td:first-child { border-left: 4px solid var(--df-added-border); }
+tr.row-df-deleted { background: var(--df-deleted-bg); }
+tr.row-df-deleted td:first-child { border-left: 4px solid var(--df-deleted-border); }
+
 .hidden { display: none; }
 
 @media (max-width: 860px) {

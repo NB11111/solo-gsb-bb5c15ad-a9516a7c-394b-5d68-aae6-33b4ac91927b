@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field
 
 from .alignment import GAP_COST, align, align_with_anchors, normalize_anchors
 from .avoid import avoid_subtitles, build_avoid_srt
+from .diffalign import GAP_COST as DIFF_GAP_COST, SPLIT_COST, diff_align
 from .parsers import parse_script, parse_srt
 from .relayout import build_relayout_srt, relayout_subtitles
 from .retime import CalibPoint, build_srt, parse_timecode, retime_subtitles
@@ -522,6 +523,193 @@ def api_split_zh_srt(req: SplitRequest):
 def api_split_en_srt(req: SplitRequest):
     rows = _build_split_rows(req.srt)
     return _split_srt_response(rows, "en", "split.en.srt")
+
+
+class DiffRequest(BaseModel):
+    old_srt: str = Field(default="", description="旧版 SRT 字幕")
+    new_srt: str = Field(default="", description="新版 SRT 字幕")
+
+
+# 差异行状态：未变 / 仅改时间 / 文字改动 / 拆分 / 合并 / 新增 / 删除
+def _diff_pair_status(op: str, text_cost: float, time_delta_ms: int) -> str:
+    if op != "match11":
+        # 拆分、合并是结构变化，即使正文归一化后完全相同也单列一类
+        return op  # "split" / "merge"
+    if text_cost == 0.0:
+        return "unchanged" if time_delta_ms == 0 else "time_only"
+    return "text_changed"
+
+
+def _build_diff_rows(old_text: str, new_text: str):
+    if len(old_text.encode("utf-8", errors="ignore")) > MAX_RAW_BYTES:
+        raise HTTPException(400, "旧版 SRT 超过 2 MB 大小限制")
+    if len(new_text.encode("utf-8", errors="ignore")) > MAX_RAW_BYTES:
+        raise HTTPException(400, "新版 SRT 超过 2 MB 大小限制")
+    try:
+        old_items = parse_srt(old_text)
+    except ValueError as exc:
+        raise HTTPException(400, f"旧版 SRT 解析失败：{exc}") from exc
+    try:
+        new_items = parse_srt(new_text)
+    except ValueError as exc:
+        raise HTTPException(400, f"新版 SRT 解析失败：{exc}") from exc
+
+    if not old_items and not new_items:
+        raise HTTPException(400, "两侧内容均为空，请粘贴旧版与新版 SRT")
+    if len(old_items) > MAX_ITEMS or len(new_items) > MAX_ITEMS:
+        raise HTTPException(
+            400, f"条目数超过每侧 {MAX_ITEMS} 条的上限，请拆分后再审校"
+        )
+
+    ops = diff_align(old_items, new_items)
+
+    def old_block(i):
+        it = old_items[i]
+        return {
+            "index": it.index,
+            "start_tc": it.start_tc,
+            "end_tc": it.end_tc,
+            "text": it.raw_text,
+        }
+
+    def new_block(j):
+        it = new_items[j]
+        return {
+            "index": it.index,
+            "start_tc": it.start_tc,
+            "end_tc": it.end_tc,
+            "text": it.raw_text,
+        }
+
+    rows: list[dict] = []
+    totals = {
+        "unchanged": 0,
+        "time_only": 0,
+        "text_changed": 0,
+        "split": 0,
+        "merge": 0,
+        "added": 0,
+        "deleted": 0,
+    }
+    total_cost = 0.0
+    for op, cost, text_cost, time_delta_ms, i, j in ops:
+        row_cost = round(cost, 6)
+        if op == "gap_old":  # 旧有新无：删除
+            rows.append({
+                "status": "deleted",
+                "cost": row_cost,
+                "text_cost": 0.0,
+                "time_delta_ms": 0,
+                "old": [old_block(i)],
+                "new": [],
+            })
+            totals["deleted"] += 1
+        elif op == "gap_new":  # 新有旧无：新增
+            rows.append({
+                "status": "added",
+                "cost": row_cost,
+                "text_cost": 0.0,
+                "time_delta_ms": 0,
+                "old": [],
+                "new": [new_block(j)],
+            })
+            totals["added"] += 1
+        elif op == "split":
+            rows.append({
+                "status": "split",
+                "cost": row_cost,
+                "text_cost": round(text_cost, 6),
+                "time_delta_ms": time_delta_ms,
+                "old": [old_block(i)],
+                "new": [new_block(j), new_block(j + 1)],
+            })
+            totals["split"] += 1
+        elif op == "merge":
+            rows.append({
+                "status": "merge",
+                "cost": row_cost,
+                "text_cost": round(text_cost, 6),
+                "time_delta_ms": time_delta_ms,
+                "old": [old_block(i), old_block(i + 1)],
+                "new": [new_block(j)],
+            })
+            totals["merge"] += 1
+        else:  # match11
+            status = _diff_pair_status(op, text_cost, time_delta_ms)
+            rows.append({
+                "status": status,
+                "cost": row_cost,
+                "text_cost": round(text_cost, 6),
+                "time_delta_ms": time_delta_ms,
+                "old": [old_block(i)],
+                "new": [new_block(j)],
+            })
+            totals[status] += 1
+        total_cost += row_cost
+
+    summary = {
+        **totals,
+        "total_rows": len(rows),
+        "total_cost": round(total_cost, 6),
+        "old_total": len(old_items),
+        "new_total": len(new_items),
+        "gap_cost": DIFF_GAP_COST,
+        "split_cost": SPLIT_COST,
+    }
+    return rows, summary
+
+
+@app.post("/api/diff")
+def api_diff(req: DiffRequest):
+    rows, summary = _build_diff_rows(req.old_srt, req.new_srt)
+    return {"summary": summary, "rows": rows}
+
+
+_DIFF_STATUS_LABEL = {
+    "unchanged": "未变",
+    "time_only": "仅改时",
+    "text_changed": "文字改动",
+    "split": "拆分",
+    "merge": "合并",
+    "added": "新增",
+    "deleted": "删除",
+}
+
+
+@app.post("/api/diff.csv")
+def api_diff_csv(req: DiffRequest):
+    rows, _ = _build_diff_rows(req.old_srt, req.new_srt)
+    buf = io.StringIO()
+    writer = csv.writer(buf, lineterminator="\n")
+    writer.writerow([
+        "状态", "代价", "文字代价", "入出点偏差(ms)",
+        "旧版序号", "旧版入点", "旧版出点", "旧版正文",
+        "新版序号", "新版入点", "新版出点", "新版正文",
+    ])
+    for r in rows:
+        writer.writerow([
+            _DIFF_STATUS_LABEL[r["status"]],
+            f"{r['cost']:.4f}",
+            f"{r['text_cost']:.4f}",
+            r["time_delta_ms"],
+            "；".join(str(b["index"]) for b in r["old"]),
+            "；".join(b["start_tc"] for b in r["old"]),
+            "；".join(b["end_tc"] for b in r["old"]),
+            "\n".join(b["text"] for b in r["old"]),
+            "；".join(str(b["index"]) for b in r["new"]),
+            "；".join(b["start_tc"] for b in r["new"]),
+            "；".join(b["end_tc"] for b in r["new"]),
+            "\n".join(b["text"] for b in r["new"]),
+        ])
+    # UTF-8 BOM，保证 Excel 直接打开中文不乱码
+    data = "﻿".encode("utf-8") + buf.getvalue().encode("utf-8")
+    return Response(
+        content=data,
+        media_type="text/csv; charset=utf-8",
+        headers={
+            "Content-Disposition": 'attachment; filename="srt-diff.csv"'
+        },
+    )
 
 
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
