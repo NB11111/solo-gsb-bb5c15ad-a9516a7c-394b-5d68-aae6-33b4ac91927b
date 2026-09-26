@@ -31,6 +31,12 @@
 正文行内容、从 1 重编号**的中文轨 / 英文轨 SRT；正文行数不符的块会指出块号并
 拒绝导出。
 
+另有 **SRT 版本差异审校**工具：输入旧版与新版 SRT，按块序做**全局最小代价**
+对齐，允许 1:1、1:2（拆分）、2:1（合并）与单侧缺项（增删）；候选先合并正文
+再做同样的文本归一化，以归一化编辑距离计分，拆并另加 0.1、增删各计 0.45，
+总分相同时优先入出点偏差更小、再优先 1:1。结果标出**未变 / 新增 / 删除 /
+仅改时 / 文字改动 / 拆分 / 合并**，并排显示两侧时间码与正文，可下载 UTF-8 CSV。
+
 后端 Python + FastAPI，前端原生 HTML / CSS / JavaScript（无框架、无构建步骤）。
 
 ---
@@ -262,6 +268,36 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000
 
 ---
 
+## SRT 版本差异审校
+
+页面顶部切换到「**SRT 版本差异审校**」选项卡，可比较同一字幕的新旧两版：
+
+1. 左/右文本框分别粘贴**旧版 SRT** 与**新版 SRT**（与其它工具同一解析器，
+   保留序号、时间码与正文）。
+2. 点 **开始比较**，下方表格按块序展示对齐结果，每行标出七种状态之一：
+   **未变**（绿）、**仅改时**（紫）、**文字改动**（黄）、**拆分**（青，
+   旧 1 块 → 新 2 块）、**合并**（橙，旧 2 块 → 新 1 块）、**新增**（蓝）、
+   **删除**（红）；每行并排显示两侧序号、入点/出点时间码与正文，
+   配对行附**入出点偏差**（毫秒）。
+3. 点 **下载 CSV** 导出全部结果（UTF-8 带 BOM，Excel 直接打开不乱码）。
+
+### 对齐与计分规则
+
+- 按块序做**全局最小代价**对齐（Needleman–Wunsch 风格 DP），每步可以是
+  1:1、1:2（拆分）、2:1（合并）或单侧缺项（增删），两版块序均保持单调、
+  每块恰好消费一次。
+- 候选**先合并正文再归一化**（与其它工具相同的 NFKC + 小写折叠 +
+  去空白/标点），以**归一化编辑距离**计文本分；拆并在文本分外**另加 0.1**，
+  增删（单侧缺项）各计 **0.45**。
+- 总分相同的方案，优先**入出点偏差**（两侧入点差 + 出点差，毫秒）更小者，
+  再优先 **1:1**（拆并次数更少）——即 DP 关键字为
+  （总分, 入出点偏差, 拆并次数）的字典序。
+- 状态判定：1:1 配对中正文完全一致且时间码一致为**未变**，仅时间码不同为
+  **仅改时**，正文不同为**文字改动**；拆分/合并按结构标记
+  （即使合并后正文归一化相同）。
+
+---
+
 ## 人工锚点（强制配对）
 
 自动对齐在个别位置不符合预期时，可人工指定若干锚点把确定对应的两行强行配对：
@@ -339,6 +375,8 @@ curl -s -X POST http://localhost:8000/api/align \
 | POST | `/api/split` | 入参 `{"srt"}`，返回双语拆轨预览 `summary` 与逐块 `rows` |
 | POST | `/api/split.zh.srt` | 同入参，直接下载中文轨 SRT（保留原时间码与正文行、重新编号） |
 | POST | `/api/split.en.srt` | 同入参，直接下载英文轨 SRT（保留原时间码与正文行、重新编号） |
+| POST | `/api/diff` | 入参 `{"old_srt","new_srt"}`，返回版本差异 `summary` 与逐行 `rows` |
+| POST | `/api/diff.csv` | 同入参，直接下载差异结果 CSV（UTF-8 带 BOM） |
 
 `anchors` 为可选的人工锚点数组：`[{"script": 3, "srt": 3}, {"script": 10, "srt": 8}]`，
 元素为解析后 1 起始的「对白稿行序位 / SRT 块序位」，两列须严格递增，
@@ -411,6 +449,23 @@ curl -s -X POST http://localhost:8000/api/split \
   -d '{"srt":"1\n00:00:01,000 --> 00:00:03,000\n你好，世界！\nHello, world!\n"}'
 ```
 
+版本差异接口 `/api/diff` 与 `/api/diff.csv` 的入参均为
+`{"old_srt": "...", "new_srt": "..."}`（两版 SRT 全文）。预览 `rows` 每行字段：
+`status`（`unchanged` 未变 / `time_only` 仅改时 / `text_changed` 文字改动 /
+`split` 拆分 / `merge` 合并 / `added` 新增 / `deleted` 删除）、`cost`、
+`old_index` / `new_index`（两侧序号数组，拆并时两个、缺项时为空）、
+`old_start_tc` / `old_end_tc` / `new_start_tc` / `new_end_tc`（成组块的
+首入点/末出点）、`old_text` / `new_text`（多块正文以 `\n` 连接）、
+`time_dev_ms`（配对行的入出点偏差毫秒，缺项行为 `null`）；`summary` 含七种
+状态计数、`total_rows`、`total_cost` 与 `old_blocks` / `new_blocks`。
+
+```bash
+curl -s -X POST http://localhost:8000/api/diff \
+  -H 'Content-Type: application/json' \
+  -d '{"old_srt":"1\n00:00:01,000 --> 00:00:02,000\n你好，世界！\n",
+       "new_srt":"1\n00:00:01,500 --> 00:00:02,500\n你好，世界！\n"}'
+```
+
 快速验证：
 
 ```bash
@@ -427,22 +482,24 @@ curl -s -X POST http://localhost:8000/api/align \
 ```
 .
 ├── app/
-│   ├── main.py        # FastAPI：/api/align、/api/export.csv、/api/retime(.srt)、/api/relayout(.srt)、/api/avoid(.srt)、/api/split(.zh/.en.srt)、静态页托管
+│   ├── main.py        # FastAPI：/api/align、/api/export.csv、/api/retime(.srt)、/api/relayout(.srt)、/api/avoid(.srt)、/api/split(.zh/.en.srt)、/api/diff(.csv)、静态页托管
 │   ├── alignment.py   # 全局单调对齐 DP（numpy 实现 + 纯 Python 回退）
 │   ├── parsers.py     # 逐行对白稿与 SRT 解析（保留时间码与正文行）
 │   ├── retime.py      # SRT 时间轴重定时：校准点分段线性映射与导出校验
 │   ├── relayout.py    # SRT 断行排版：宽度计量、合法断点枚举与最优选点、SRT 导出
 │   ├── avoid.py       # SRT 时间避让：最小最大平移量求解 + 带盒 L1 保序回归就近落位、SRT 导出
 │   ├── split.py       # 双语 SRT 拆轨：错配计分、全段最小总代价 DP（平局逐块中文在上）、单轨 SRT 导出
+│   ├── diffalign.py   # SRT 版本差异：1:1/1:2/2:1/缺项全局最小代价 DP（字典序键：总分→入出点偏差→拆并次数）
 │   └── textnorm.py    # 归一化与归一化字符编辑距离
 ├── static/
-│   ├── index.html     # 页面结构（对齐 / 重定时 / 断行排版 / 时间避让 / 双语拆轨五个选项卡）
+│   ├── index.html     # 页面结构（对齐 / 重定时 / 断行排版 / 时间避让 / 双语拆轨 / 版本差异六个选项卡）
 │   ├── style.css
 │   ├── app.js         # 对齐页面前端交互（fetch 调接口、渲染、下载）
 │   ├── retime.js      # 重定时页面前端交互（含各页签切换）
 │   ├── relayout.js    # 断行排版页面前端交互
 │   ├── avoid.js       # 时间避让页面前端交互
-│   └── split.js       # 双语拆轨页面前端交互
+│   ├── split.js       # 双语拆轨页面前端交互
+│   └── diff.js        # 版本差异审校页面前端交互
 ├── tests/             # 单元 + 接口测试
 ├── requirements.txt
 ├── Dockerfile

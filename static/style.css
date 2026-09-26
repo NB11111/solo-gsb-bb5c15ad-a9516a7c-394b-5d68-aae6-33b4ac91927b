@@ -13,6 +13,18 @@
   --wrapped-border: #34a853;
   --manual-bg: #fdecea;
   --manual-border: #ea4335;
+  --time-only-bg: #f3efff;
+  --time-only-border: #7c3aed;
+  --text-changed-bg: #fff6e0;
+  --text-changed-border: #fbbc04;
+  --split-bg: #e0f2f1;
+  --split-border: #00897b;
+  --merge-bg: #fbe9e7;
+  --merge-border: #d84315;
+  --added-bg: #eef4fe;
+  --added-border: #2563eb;
+  --deleted-bg: #fdecea;
+  --deleted-border: #ea4335;
   --ink: #1f2933;
   --muted: #6b7280;
   --line: #d8dee4;
@@ -276,6 +288,38 @@ tr.row-en-top td:first-child { border-left: 4px solid var(--single-border); }
 .switch-flag { color: #b06000; font-size: 12px; font-weight: 600; margin-left: 4px; white-space: nowrap; }
 .summary .dl-btns { margin-left: auto; display: flex; gap: 10px; }
 .summary .dl-btns .ghost { margin-left: 0; }
+
+/* SRT 版本差异审校 */
+.chip-time-only { background: var(--time-only-bg); border-color: var(--time-only-border); }
+.chip-text-changed { background: var(--text-changed-bg); border-color: var(--text-changed-border); }
+.chip-split { background: var(--split-bg); border-color: var(--split-border); }
+.chip-merge { background: var(--merge-bg); border-color: var(--merge-border); }
+.chip-added { background: var(--added-bg); border-color: var(--added-border); }
+.chip-deleted { background: var(--deleted-bg); border-color: var(--deleted-border); }
+.col-df-status { width: 96px; }
+.col-df-idx { width: 42px; text-align: right; color: var(--muted); }
+.col-df-text { min-width: 200px; }
+.col-df-dev { width: 80px; text-align: right; }
+.badge-unchanged { background: var(--match-border); color: #fff; }
+.badge-time-only { background: var(--time-only-border); color: #fff; }
+.badge-text-changed { background: var(--text-changed-border); color: #7a5200; }
+.badge-split { background: var(--split-border); color: #fff; }
+.badge-merge { background: var(--merge-border); color: #fff; }
+.badge-added { background: var(--added-border); color: #fff; }
+.badge-deleted { background: var(--deleted-border); color: #fff; }
+tr.row-unchanged td:first-child { border-left: 4px solid var(--match-border); }
+tr.row-time-only { background: var(--time-only-bg); }
+tr.row-time-only td:first-child { border-left: 4px solid var(--time-only-border); }
+tr.row-text-changed { background: var(--text-changed-bg); }
+tr.row-text-changed td:first-child { border-left: 4px solid var(--text-changed-border); }
+tr.row-split { background: var(--split-bg); }
+tr.row-split td:first-child { border-left: 4px solid var(--split-border); }
+tr.row-merge { background: var(--merge-bg); }
+tr.row-merge td:first-child { border-left: 4px solid var(--merge-border); }
+tr.row-added { background: var(--added-bg); }
+tr.row-added td:first-child { border-left: 4px solid var(--added-border); }
+tr.row-deleted { background: var(--deleted-bg); }
+tr.row-deleted td:first-child { border-left: 4px solid var(--deleted-border); }
 
 .hidden { display: none; }
 
